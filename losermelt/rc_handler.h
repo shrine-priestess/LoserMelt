@@ -11,8 +11,11 @@ void init_rc();
 //return true if RC signal looks good
 bool rc_signal_is_healthy();         
 
-// Compute a checksum for the current position of the sticks, to use in the previous
+// Commpute a checksum for the last-received radio packet
 unsigned long compute_checksum();
+
+//query the sbus receiver for a new packet
+bool rc_poll();
 
 //returns (0,1023) value indicating throttle level
 int rc_get_throttle_perk();
@@ -42,6 +45,9 @@ bool rc_get_accel_save();
 // Returns (1, 16) for translation trim - adjusts how hard the bot tries to translate
 float rc_get_trans_trim();
 
+// Internal use- get the value of a specific channel from the latest packet
+int get_channel(int channel);
+
 // Channel assignments
 // Note that the first channel is 0 in Ibus.cpp, while most controllers start at channel 1
 // So channel 0 here is channel 1 on the controller, and so on
@@ -60,20 +66,22 @@ float rc_get_trans_trim();
 // it's accepted that a TX with fully centered trims may produce values somewhat off these numbers
 
 // RC pulses outside this range are considered invalid (indicate a bad RC signal)
-#define MAX_RC_PULSE_LENGTH 2012
-#define MIN_RC_PULSE_LENGTH 988
+#define MAX_RC_PULSE_LENGTH 1811
+#define MIN_RC_PULSE_LENGTH 172
+#define CENTER_RC_PULSE_LENGTH (MAX_RC_PULSE_LENGTH + MIN_RC_PULSE_LENGTH)/2 
 
 // This value reflects nominal range of possible RC pulse values (maximum - minimum)
 // This value is used to help scale left / right adjustment of heading
 // (does not need to be perfect)
 #define NOMINAL_PULSE_RANGE (MAX_RC_PULSE_LENGTH - MIN_RC_PULSE_LENGTH)
 
-#define IDLE_THROTTLE_PULSE_LENGTH 988            // pulses below this value are considered 0% throttle
-#define FULL_THROTTLE_PULSE_LENGTH 2012           // pulses above this value are considered 100%
-#define CENTER_LEFTRIGHT_PULSE_LENGTH 1500        // center value for left / right
-#define CENTER_FORBACK_PULSE_LENGTH 1500          // center value for for / back
+#define IDLE_THROTTLE_PULSE_LENGTH CENTER_RC_PULSE_LENGTH               // pulses below this value are considered 0% throttle
+#define FULL_THROTTLE_PULSE_LENGTH MAX_RC_PULSE_LENGTH         // pulses above this value are considered 100%
+#define CENTER_LEFTRIGHT_PULSE_LENGTH CENTER_RC_PULSE_LENGTH        // center value for left / right
+#define CENTER_FORBACK_PULSE_LENGTH CENTER_RC_PULSE_LENGTH         // center value for for / back
 
-#define FORBACK_MIN_THRESH_PULSE_LENGTH 100       // pulse length must differ by this much from CENTER_FORBACK_PULSE_LENGTH to be considered going forward or back
+#define FORBACK_MIN_THRESH_PULSE_LENGTH 25       // pulse length must differ by this much from CENTER_FORBACK_PULSE_LENGTH to be considered going forward or back
 
 #define LR_CONFIG_MODE_DEADZONE_WIDTH 100         // deadzone for LR when in config mode (in US) - prevents unintended tracking adjustments
 #define LR_NORMAL_DEADZONE_WIDTH 25               // deadzone for normal drive - can help with unintentional drift when moving forward / back
+#define RC_TRIM_EPSILON 5                         // for "within epsilon" calculation relative to min and max pulse lengths

@@ -8,8 +8,6 @@
 #include "spin_control.h"
 #include "accel_handler.h"
 #include "config_storage.h"
-#include "led_driver.h"
-#include "battery_monitor.h"
 
 #ifdef USE_PID_THROTTLE_CONTROL
 #include <PID_v1.h>
@@ -39,7 +37,7 @@ double pid_throttle_output = 0.0; // Output from the PID: How hard to run the th
 PID throttle_pid(&pid_current_rpm, &pid_throttle_output, &pid_target_rpm, PID_KP, PID_KI, PID_KD, P_ON_E, DIRECT);
 #endif
 
-//-initial- assignment of melty parameters
+// initial assignment of melty parameters
 melty_parameters_t melty_parameters;
 
 // Globals for spin state - when did we start spinning and how long have we been spinning for?
@@ -55,8 +53,8 @@ void init_spin_timer() {
   TCCR3A = 0; // set entire TCCR1A register to 0
   TCCR3B = 0; // same for TCCR1B
   TCNT3  = 0; // initialize counter value to 0
-  // set compare match register for 2000 Hz increments
-  OCR3A = 7999; // = 16000000 / (1 * 2000) - 1 (must be <65536)
+  // set compare match register for 1000 Hz increments
+  OCR3A = 15999; // = 16000000 / (1 * 1000) - 1 (must be <65536)
   // turn on CTC mode
   TCCR3B |= (1 << WGM12);
   // Set CS12, CS11 and CS10 bits for 1 prescaler
@@ -108,6 +106,10 @@ int get_max_rpm() {
   return highest_rpm;
 }
 
+void set_led_pattern(LED_Pattern pattern) {
+  melty_parameters.led_pattern = pattern;
+}
+
 // calculates time for this rotation of robot
 // robot is steered by increasing / decreasing rotation by factor relative to RC left / right position
 // ie - reducing rotation time estimate below actual results in shift of heading opposite the direction of rotation
@@ -136,7 +138,7 @@ static void get_rotation_interval_us(melty_parameters_t *melty_parameters) {
     float rpm_adjustment_factor = (float)(rc_get_leftright() / (float)NOMINAL_PULSE_RANGE) / LEFT_RIGHT_HEADING_CONTROL_DIVISOR;
 
     // therefore, we need to subtract it here, so left turns = higher effective RPM
-    rpm = rpm - (rpm * rpm_adjustment_factor);
+    rpm = rpm - ((rpm * rpm_adjustment_factor) * rc_get_spin_dir());
   }
 
   // How fast it'll take us to spin if we don't accelerate or decelerate
@@ -262,26 +264,20 @@ static void get_melty_parameters(melty_parameters_t *melty_parameters) {
   #ifdef USE_PID_THROTTLE_CONTROL
   pid_target_rpm = MAX_TARGET_RPM * rc_get_throttle_perk() / 1024.0;
   throttle_pid.Compute();
-  double throttle_perk = pid_throttle_output;
+  melty_parameters->throttle_perk = (int) pid_throttle_output;
   #else
-  double throttle_perk = rc_get_throttle_perk();
+  melty_parameters->throttle_perk = (int) rc_get_throttle_perk();
   #endif
 
   // translation control!
-  // Because there's a lot of math here, we're going to compute the actual dshot commands once
-  // So then in the hot loop we can just spam the known codes
+  
   float trans_trim = rc_get_trans_trim();
 
-  int throttle_high_perk = min(throttle_perk + (melty_parameters->translation_enabled * translate_disp * throttle_perk * trans_trim / 1024), 1023);
-  int throttle_low_perk = max(throttle_perk - (melty_parameters->translation_enabled * translate_disp * throttle_perk * trans_trim / 1024), 0);
+  melty_parameters->max_throttle_offset = min(melty_parameters->translation_enabled * translate_disp * melty_parameters->throttle_perk * trans_trim / 1024, (melty_parameters->throttle_perk-1));
 
   int motor_dir = rc_get_spin_dir();
 
-  throttle_high_perk *= motor_dir;
-  throttle_low_perk *= motor_dir;
-
-  melty_parameters->throttle_high_dshot = perk2dshot(throttle_high_perk);
-  melty_parameters->throttle_low_dshot = perk2dshot(throttle_low_perk);
+  melty_parameters->throttle_perk *= motor_dir;
 
   // if the battery voltage is low - shimmer the LED to let user know
 #ifdef BATTERY_ALERT_ENABLED
@@ -342,9 +338,18 @@ void spin_one_iteration(void) {
 
 // The hot loop
 ISR(TIMER3_COMPA_vect) {
-  // fast bail if we aren't supposed to be spinning.
-  // disable_spin() already stopped the motors, so we can just return
+  // If we aren't supposed to be spinning, just update the status light
+  // disable_spin() already turned off the motors, so no need to send any commands to the motor at all
   if (!melty_parameters.spin_enabled) {
+    int nowint = millis() % 1600;
+    nowint /= 100;
+    bool led = (0x01 << nowint) & melty_parameters.led_pattern;
+    if (led) {
+      heading_led_on(false);
+    } else {
+      heading_led_off();
+    }
+    // and bail
     return;
   }
 
@@ -355,11 +360,24 @@ ISR(TIMER3_COMPA_vect) {
     start_time += melty_parameters.rotation_interval_us;
   }
 
-  // translate
+  double throttle_offset = 0;
+
+  //if (melty_parameters.max_throttle_offset > 0) {
+    // translation math time - first, how far into this phase of rotation are we?
+    long micros_into_phase = time_spent_this_rotation_us % (melty_parameters.rotation_interval_us/2);
+    float phase_progress = 2.0 * micros_into_phase / (melty_parameters.rotation_interval_us);
+
+    // What does that mean the sine (approximation) of that distance into the phase is?
+    // Using a parabolic approximation of half a sine wave, that goes from Y=0 to 1 and back in the range X=0..1
+    float phase_offset_fraction = -4 * phase_progress * (phase_progress - 1);
+
+    throttle_offset = (double) (phase_offset_fraction * melty_parameters.max_throttle_offset);
+  //}
+
   if (time_spent_this_rotation_us >= melty_parameters.motor_start_phase_1 && time_spent_this_rotation_us <= melty_parameters.motor_start_phase_2) {
-    motors_on_direct(melty_parameters.throttle_high_dshot, melty_parameters.throttle_low_dshot);
+    motors_on(melty_parameters.throttle_perk + throttle_offset, melty_parameters.throttle_perk - throttle_offset);
   } else {
-    motors_on_direct(melty_parameters.throttle_low_dshot, melty_parameters.throttle_high_dshot);
+    motors_on(melty_parameters.throttle_perk - throttle_offset, melty_parameters.throttle_perk + throttle_offset);
   }
    
     // displays heading LED at correct location
