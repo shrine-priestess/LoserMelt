@@ -55,20 +55,23 @@ void init_accel() {
   xl.setFullScale(ACCEL_RANGE);
 }
 
-//reads accel and converts to G's
+//reads accel and converts to G's, averaging X and Y axes
 //ACCEL_MAX_SCALE needs to match ACCEL_RANGE value
 float get_accel_force_g() {
   int16_t x, y, z;
   xl.readAxes(x, y, z);
-  return xl.convertToG(ACCEL_MAX_SCALE,y);
+  float x_g = fabs(xl.convertToG(ACCEL_MAX_SCALE, x));
+  float y_g = fabs(xl.convertToG(ACCEL_MAX_SCALE, y));
+  return (x_g + y_g) / 2.0f;  // Average both axes
 }
 
 // Returns the raw RPM, uncorrected- used for setting the correction factor
+// Now uses averaged X and Y axes from get_accel_force_g()
 float get_uncorrected_rpm() {
   float rpm;
-  //use of absolute makes it so we don't need to worry about accel orientation
   //calculate RPM from g's - derived from "G = 0.00001118 * r * RPM^2"
-  rpm = fabs(get_accel_force_g() - accel_zero_g_offset) * 89445.0f;
+  //get_accel_force_g() already returns absolute value of averaged X and Y axes
+  rpm = (get_accel_force_g() - accel_zero_g_offset) * 89445.0f;
   rpm = rpm / assume_radius_in_cm;
   rpm = sqrt(rpm);
 

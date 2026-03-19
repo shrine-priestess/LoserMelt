@@ -13,7 +13,7 @@
 
 //----------EEPROM----------
 #define ENABLE_EEPROM_STORAGE                     // Comment out this to disable EEPROM (for ARM)
-#define EEPROM_WRITTEN_SENTINEL_VALUE 01          // Changing this value will cause existing EEPROM values to be invalidated (revert to defaults)
+#define EEPROM_WRITTEN_SENTINEL_VALUE 02          // Changing this value will cause existing EEPROM values to be invalidated (revert to defaults)
 
 //----------FEATURES---------
 #define ENABLE_TANK_MODE                          // Toggleable tank-mode driving (useful for positioning the bot in the box pre-spinup)
@@ -23,7 +23,7 @@
 //----------SPIN CONTROL SETTINGS----------
 // "DEFAULT" values are overriden by interactive config / stored in EEPROM (interactive config will be easier if they are about correct)
 // To force these values to take effect after interactive config - increment EEPROM_WRITTEN_SENTINEL_VALUE
-#define DEFAULT_ACCEL_MOUNT_RADIUS_CM 2.6         // Radius of accelerometer from center of robot
+#define DEFAULT_ACCEL_MOUNT_RADIUS_CM 4.2         // Radius of accelerometer from center of robot
 #define DEFAULT_LED_OFFSET_PERCENT 7              // Adjust to make heading LED line up with direction robot travels 0-99 (increasing moves beacon clockwise)
                                                    
 #define DEFAULT_ACCEL_ZERO_G_OFFSET 0.0f          // Value accelerometer returns with robot at rest (in G) - adjusts for any offset
@@ -44,14 +44,16 @@
 //------------TRANSLATIONAL DRIFT SETTINGS-----------
 #define LEFT_RIGHT_HEADING_CONTROL_DIVISOR 2.0f   // How quick steering is (larger values = slower)
 
-#define MIN_TRANSLATION_RPM 400                   // full power spin in below this number (increasing can reduce spin-up time)
+// default 400
+#define MIN_TRANSLATION_RPM 800                   // full power spin in below this number (increasing can reduce spin-up time)
 
 
 //----------PIN MAPPINGS----------
 // On an Atmega32, pins 0 and 1 (rx and tx) map to Serial1
 // So that's where the receiver needs to be wired up
 
-#define HEADING_LED_PIN 13                        // To heading LED (pin 13 is on-board Arduino LED)
+#define TOP_LED_PIN 13                            // To top heading LED (pin 13 is on-board Arduino LED)
+#define BOTTOM_LED_PIN 12                         // To bottom heading LED
 
 // no configuration changes are needed if only 1 motor is used!
 #define MOTOR_PIN1 9                              // Pin for Motor 1 driver
@@ -61,6 +63,6 @@
 //----------SAFETY----------
 #define ENABLE_WATCHDOG                           //Uses Adafruit's sleepdog to enable watchdog / reset (tested on AVR - should work for ARM https://github.com/adafruit/Adafruit_SleepyDog)
 #define WATCH_DOG_TIMEOUT_MS 2000                 //Timeout value for watchdog (not all values are supported - 2000ms verified with Arudino Micro)
-#define CONTROL_MOTION_TIMEOUT_MS 3000            //Timeout value for stick motion / loss of signal - backup failsafe system in case the rx doesn't failsafe correctly
+#define CONTROL_MOTION_TIMEOUT_MS 20000            //Timeout value for stick motion / loss of signal - backup failsafe system in case the rx doesn't failsafe correctly
 // #define JUST_DO_DIAGNOSTIC_LOOP
 #endif

@@ -66,8 +66,9 @@ int get_channel(int channel);
 // it's accepted that a TX with fully centered trims may produce values somewhat off these numbers
 
 // RC pulses outside this range are considered invalid (indicate a bad RC signal)
-#define MAX_RC_PULSE_LENGTH 1811
-#define MIN_RC_PULSE_LENGTH 172
+// formerly 172-1811
+#define MAX_RC_PULSE_LENGTH 2047
+#define MIN_RC_PULSE_LENGTH 0
 #define CENTER_RC_PULSE_LENGTH (MAX_RC_PULSE_LENGTH + MIN_RC_PULSE_LENGTH)/2 
 
 // This value reflects nominal range of possible RC pulse values (maximum - minimum)
