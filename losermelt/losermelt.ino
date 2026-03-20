@@ -3,15 +3,12 @@
 
 #define ENABLE_WATCHDOG
 
-// See melty_config.h for configuration parac:\Users\kezia\Downloads\PotatoMelt-sbus\potatomelt\SparkFun_LIS331.hmeters
-
 #include "rc_handler.h"
 #include "melty_config.h"
 #include "motor_driver.h"
 #include "accel_handler.h"
 #include "spin_control.h"
 #include "config_storage.h"
-// #include "battery_monitor.h"
 
 #ifdef ENABLE_TANK_MODE
 #include "tank_control.h"
@@ -162,14 +159,6 @@ void loop() {
     delay(250);   //delay prevents serial from getting flooded (can cause issues programming)
     return;
 #endif
-
-//  #ifdef BATTERY_CRIT_HALT_ENABLED
-//  if(battery_voltage_crit())
-//  {
-//    handle_battery_crit();
-//    return;
-//  }
-//  #endif
 
   // fast-fail if there's no new RC data to work from
   if (!rc_poll()) {
